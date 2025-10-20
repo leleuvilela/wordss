@@ -1,46 +1,14 @@
-enum Direction {
-  HORIZONTAL = "HORIZONTAL",
-  VERTICAL = "VERTICAL",
-  DIAGONAL_DOWN = "DIAGONAL_DOWN",
-  DIAGONAL_UP = "DIAGONAL_UP",
-  HORIZONTAL_REV = "HORIZONTAL_REV",
-  VERTICAL_REV = "VERTICAL_REV",
-  DIAGONAL_DOWN_REV = "DIAGONAL_DOWN_REV",
-  DIAGONAL_UP_REV = "DIAGONAL_UP_REV",
-}
+import {
+  Direction,
+  DirectionVectors,
+  type Position,
+  type ChunkCoords,
+  type Grid,
+  type WordPlacement,
+  type Statistics,
+} from "./types";
 
-const DirectionVectors: Record<Direction, [number, number]> = {
-  [Direction.HORIZONTAL]: [0, 1],
-  [Direction.VERTICAL]: [1, 0],
-  [Direction.DIAGONAL_DOWN]: [1, 1],
-  [Direction.DIAGONAL_UP]: [-1, 1],
-  [Direction.HORIZONTAL_REV]: [0, -1],
-  [Direction.VERTICAL_REV]: [-1, 0],
-  [Direction.DIAGONAL_DOWN_REV]: [-1, -1],
-  [Direction.DIAGONAL_UP_REV]: [1, -1],
-};
-
-type Position = [number, number];
-type ChunkCoords = [number, number];
-type Grid = string[][];
-
-interface WordPlacement {
-  word: string;
-  startRow: number;
-  startCol: number;
-  direction: Direction;
-  chunkCoords: ChunkCoords;
-}
-
-interface Statistics {
-  chunksGerados: number;
-  palavrasColocadas: number;
-  celulasTotais: number;
-  limites: [number, number, number, number];
-  tamanhoArea: [number, number];
-}
-
-class InfiniteCacaPalavras {
+class InfiniteWordSearch {
   private chunkSize: number;
   private chunks: Map<string, Grid>;
   private words: string[];
@@ -62,38 +30,38 @@ class InfiniteCacaPalavras {
   private getDefaultWords(): string[] {
     return [
       "PYTHON",
-      "ALGORITMO",
-      "COMPUTADOR",
-      "PROGRAMA",
-      "CODIGO",
-      "DADOS",
-      "MATRIZ",
-      "VETOR",
-      "FUNCAO",
-      "CLASSE",
-      "OBJETO",
-      "METODO",
-      "VARIAVEL",
+      "ALGORITHM",
+      "COMPUTER",
+      "PROGRAM",
+      "CODE",
+      "DATA",
+      "MATRIX",
+      "VECTOR",
+      "FUNCTION",
+      "CLASS",
+      "OBJECT",
+      "METHOD",
+      "VARIABLE",
       "LOOP",
-      "SISTEMA",
-      "REDE",
-      "BANCO",
-      "ARQUIVO",
-      "MEMORIA",
-      "PROCESSO",
+      "SYSTEM",
+      "NETWORK",
+      "DATABASE",
+      "FILE",
+      "MEMORY",
+      "PROCESS",
       "THREAD",
       "DEBUG",
-      "COMPILAR",
-      "EXECUTAR",
-      "BIBLIOTECA",
+      "COMPILE",
+      "EXECUTE",
+      "LIBRARY",
       "FRAMEWORK",
       "INTERFACE",
-      "PROTOCOLO",
-      "SERVIDOR",
-      "CLIENTE",
-      "RECURSO",
-      "MODULO",
-      "PACOTE",
+      "PROTOCOL",
+      "SERVER",
+      "CLIENT",
+      "RESOURCE",
+      "MODULE",
+      "PACKAGE",
     ];
   }
 
@@ -152,7 +120,7 @@ class InfiniteCacaPalavras {
     const seed = this.hashChunkCoords(chunkCoords);
     const random = this.seededRandom(seed);
 
-    const numWords = Math.floor(random() * 4) + 2; // 2-5 palavras
+    const numWords = Math.floor(random() * 4) + 2; // 2-5 words
 
     for (let i = 0; i < numWords; i++) {
       const wordIndex = Math.abs(Math.floor(random() * this.words.length));
@@ -429,9 +397,9 @@ class InfiniteCacaPalavras {
 
     console.log(`\n${"=".repeat(60)}`);
     console.log(
-      `CAÇA-PALAVRAS INFINITO - Região [${startRow}:${endRow}, ${startCol}:${endCol}]`,
+      `INFINITE WORD SEARCH - Region [${startRow}:${endRow}, ${startCol}:${endCol}]`,
     );
-    console.log(`Chunks gerados: ${this.chunks.size}`);
+    console.log(`Chunks generated: ${this.chunks.size}`);
     console.log("=".repeat(60));
 
     let header = "     ";
@@ -465,7 +433,7 @@ class InfiniteCacaPalavras {
       }
 
       if (wordsInRegion.size > 0) {
-        console.log("\nPALAVRAS NESTA REGIÃO:");
+        console.log("\nWORDS IN THIS REGION:");
         for (const word of wordsInRegion) {
           console.log(`- ${word}`);
         }
@@ -492,43 +460,43 @@ class InfiniteCacaPalavras {
     const totalCells = this.chunks.size * this.chunkSize * this.chunkSize;
 
     return {
-      chunksGerados: this.chunks.size,
-      palavrasColocadas: this.placedWords.length,
-      celulasTotais: totalCells,
-      limites: bounds,
-      tamanhoArea: [bounds[2] - bounds[0] + 1, bounds[3] - bounds[1] + 1],
+      chunksGenerated: this.chunks.size,
+      placedWords: this.placedWords.length,
+      totalCells: totalCells,
+      bounds: bounds,
+      areaSize: [bounds[2] - bounds[0] + 1, bounds[3] - bounds[1] + 1],
     };
   }
 }
 
 function main(): void {
-  console.log("Criando caça-palavras infinito...");
-  const cacaPalavras = new InfiniteCacaPalavras(10);
+  console.log("Creating infinite word search...");
+  const wordSearch = new InfiniteWordSearch(10);
 
-  cacaPalavras.displayRegion(0, 0, 12);
+  wordSearch.displayRegion(0, 0, 12);
 
   console.log("\n" + "=".repeat(60));
-  console.log("EXPANDINDO O GRID");
+  console.log("EXPANDING THE GRID");
   console.log("=".repeat(60));
 
-  console.log("\nExpandindo para a posição (25, 25)...");
-  cacaPalavras.expandToPosition(25, 25);
-  cacaPalavras.displayRegion(25, 25, 10);
+  console.log("\nExpanding to position (25, 25)...");
+  wordSearch.expandToPosition(25, 25);
+  wordSearch.displayRegion(25, 25, 10);
 
-  console.log("\nExpandindo para a posição (-15, -15)...");
-  cacaPalavras.expandToPosition(-15, -15);
-  cacaPalavras.displayRegion(-15, -15, 10);
+  console.log("\nExpanding to position (-15, -15)...");
+  wordSearch.expandToPosition(-15, -15);
+  wordSearch.displayRegion(-15, -15, 10);
 
-  console.log("\nExpandindo para a posição (-150, -150)...");
-  cacaPalavras.expandToPosition(-150, -150);
-  cacaPalavras.displayRegion(-15, -15, 100);
+  console.log("\nExpanding to position (-150, -150)...");
+  wordSearch.expandToPosition(-150, -150);
+  wordSearch.displayRegion(-15, -15, 100);
 
   console.log("\n" + "=".repeat(60));
-  console.log("TESTE DE VALIDAÇÃO");
+  console.log("VALIDATION TEST");
   console.log("=".repeat(60));
 
   console.log("\n" + "=".repeat(60));
-  console.log("NAVEGAÇÃO CONTÍNUA");
+  console.log("CONTINUOUS NAVIGATION");
   console.log("=".repeat(60));
 
   const positionsToExplore: Position[] = [
@@ -540,17 +508,17 @@ function main(): void {
   ];
 
   for (const [posRow, posCol] of positionsToExplore) {
-    console.log(`\nExplorando região em (${posRow}, ${posCol})...`);
-    cacaPalavras.expandToPosition(posRow, posCol);
+    console.log(`\nExploring region at (${posRow}, ${posCol})...`);
+    wordSearch.expandToPosition(posRow, posCol);
 
-    const region = cacaPalavras.getRegion(
+    const region = wordSearch.getRegion(
       posRow - 12,
       posCol - 12,
       posRow + 12,
       posCol + 12,
     );
 
-    console.log("Amostra 25x25 da região:");
+    console.log("25x25 sample of the region:");
     for (const row of region) {
       console.log(row.join(" "));
     }
@@ -569,37 +537,28 @@ function main(): void {
     [9, 9],
   ];
   const letters = testCoords
-    .map(([r, c]) => cacaPalavras.getCell(r, c))
+    .map(([r, c]) => wordSearch.getCell(r, c))
     .join("");
-  const result = cacaPalavras.validateSelection(testCoords);
+  const result = wordSearch.validateSelection(testCoords);
 
-  console.log(`\nTestando coordenadas ${JSON.stringify(testCoords)}:`);
-  console.log(`Letras: ${letters}`);
+  console.log(`\nTesting coordinates ${JSON.stringify(testCoords)}:`);
+  console.log(`Letters: ${letters}`);
   console.log(
-    `Resultado: ${result ? "VALIDO!" : "Nenhuma palavra encontrada"}`,
+    `Result: ${result ? "VALID!" : "No word found"}`,
   );
 
   console.log("\n" + "=".repeat(60));
-  console.log("ESTATÍSTICAS DO GRID INFINITO");
+  console.log("INFINITE GRID STATISTICS");
   console.log("=".repeat(60));
 
-  const stats = cacaPalavras.getStatistics();
-  console.log(`Chunks gerados: ${stats.chunksGerados}`);
-  console.log(`Palavras colocadas: ${stats.palavrasColocadas}`);
-  console.log(`Células totais: ${stats.celulasTotais}`);
-  console.log(`Limites: ${JSON.stringify(stats.limites)}`);
-  console.log(`Tamanho da área: ${JSON.stringify(stats.tamanhoArea)}`);
+  const stats = wordSearch.getStatistics();
+  console.log(`Chunks generated: ${stats.chunksGenerated}`);
+  console.log(`Placed words: ${stats.placedWords}`);
+  console.log(`Total cells: ${stats.totalCells}`);
+  console.log(`Bounds: ${JSON.stringify(stats.bounds)}`);
+  console.log(`Area size: ${JSON.stringify(stats.areaSize)}`);
 }
 
-export {
-  InfiniteCacaPalavras,
-  Direction,
-  DirectionVectors,
-  type WordPlacement,
-  type Position,
-  type ChunkCoords,
-  type Grid,
-  type Statistics,
-};
+export { InfiniteWordSearch };
 
 main();

@@ -1,7 +1,14 @@
-import { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useLayoutEffect,
+} from "react";
 import { ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { useBoard } from "../core/useBoard";
 
 const INITIAL_SIZE = 50; // Initial 50x50 grid
 const CELL_SIZE = 60; // pixels
@@ -35,83 +42,102 @@ function generateCells(count: number): string[] {
 }
 
 export function GameBoard() {
+  const { lastMessage } = useBoard();
+
   const [zoom, setZoom] = useState(1);
   const [board, setBoard] = useState(() => generateBoard(INITIAL_SIZE));
   const parentRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const isExpandingRef = useRef(false);
-  const pendingScrollAdjustmentRef = useRef<{ x: number; y: number } | null>(null);
+  const pendingScrollAdjustmentRef = useRef<{ x: number; y: number } | null>(
+    null,
+  );
 
   const rowCount = board.length;
   const colCount = board[0]?.length || 0;
 
+  useEffect(() => {
+    console.log(lastMessage);
+  }, [lastMessage]);
+
   // Function to generate more board (will be replaced with websocket data in the future)
-  const generateMoreBoard = useCallback((direction: 'up' | 'down' | 'left' | 'right') => {
-    if (isExpandingRef.current) return;
-    isExpandingRef.current = true;
+  const generateMoreBoard = useCallback(
+    (direction: "up" | "down" | "left" | "right") => {
+      if (isExpandingRef.current) return;
+      isExpandingRef.current = true;
 
-    const scrollElement = parentRef.current;
-    if (!scrollElement) return;
+      const scrollElement = parentRef.current;
+      if (!scrollElement) return;
 
-    // Store current scroll position
-    const currentScrollLeft = scrollElement.scrollLeft;
-    const currentScrollTop = scrollElement.scrollTop;
+      // Store current scroll position
+      const currentScrollLeft = scrollElement.scrollLeft;
+      const currentScrollTop = scrollElement.scrollTop;
 
-    setBoard((prevBoard) => {
-      const newBoard = [...prevBoard.map(row => [...row])];
+      setBoard((prevBoard) => {
+        const newBoard = [...prevBoard.map((row) => [...row])];
 
-      if (direction === 'right') {
-        // Add columns to the right
-        for (let i = 0; i < newBoard.length; i++) {
-          const newCells = generateCells(EXPANSION_SIZE);
-          newBoard[i].push(...newCells);
+        if (direction === "right") {
+          // Add columns to the right
+          for (let i = 0; i < newBoard.length; i++) {
+            const newCells = generateCells(EXPANSION_SIZE);
+            newBoard[i].push(...newCells);
+          }
+          console.log(
+            `Expanded board to the right. New size: ${newBoard.length}x${newBoard[0].length}`,
+          );
+        } else if (direction === "left") {
+          // Add columns to the left
+          for (let i = 0; i < newBoard.length; i++) {
+            const newCells = generateCells(EXPANSION_SIZE);
+            newBoard[i].unshift(...newCells);
+          }
+          // Queue scroll adjustment
+          const scrollOffset = EXPANSION_SIZE * CELL_SIZE * zoom;
+          pendingScrollAdjustmentRef.current = {
+            x: currentScrollLeft + scrollOffset,
+            y: currentScrollTop,
+          };
+          console.log(
+            `Expanded board to the left. New size: ${newBoard.length}x${newBoard[0].length}`,
+          );
+        } else if (direction === "down") {
+          // Add rows to the bottom
+          for (let i = 0; i < EXPANSION_SIZE; i++) {
+            const newRow = generateCells(newBoard[0].length);
+            newBoard.push(newRow);
+          }
+          console.log(
+            `Expanded board to the bottom. New size: ${newBoard.length}x${newBoard[0].length}`,
+          );
+        } else if (direction === "up") {
+          // Add rows to the top
+          const rowsToAdd: string[][] = [];
+          for (let i = 0; i < EXPANSION_SIZE; i++) {
+            const newRow = generateCells(newBoard[0].length);
+            rowsToAdd.push(newRow);
+          }
+          newBoard.unshift(...rowsToAdd);
+          // Queue scroll adjustment
+          const scrollOffset = EXPANSION_SIZE * CELL_SIZE * zoom;
+          pendingScrollAdjustmentRef.current = {
+            x: currentScrollLeft,
+            y: currentScrollTop + scrollOffset,
+          };
+          console.log(
+            `Expanded board to the top. New size: ${newBoard.length}x${newBoard[0].length}`,
+          );
         }
-        console.log(`Expanded board to the right. New size: ${newBoard.length}x${newBoard[0].length}`);
-      } else if (direction === 'left') {
-        // Add columns to the left
-        for (let i = 0; i < newBoard.length; i++) {
-          const newCells = generateCells(EXPANSION_SIZE);
-          newBoard[i].unshift(...newCells);
-        }
-        // Queue scroll adjustment
-        const scrollOffset = EXPANSION_SIZE * CELL_SIZE * zoom;
-        pendingScrollAdjustmentRef.current = {
-          x: currentScrollLeft + scrollOffset,
-          y: currentScrollTop,
-        };
-        console.log(`Expanded board to the left. New size: ${newBoard.length}x${newBoard[0].length}`);
-      } else if (direction === 'down') {
-        // Add rows to the bottom
-        for (let i = 0; i < EXPANSION_SIZE; i++) {
-          const newRow = generateCells(newBoard[0].length);
-          newBoard.push(newRow);
-        }
-        console.log(`Expanded board to the bottom. New size: ${newBoard.length}x${newBoard[0].length}`);
-      } else if (direction === 'up') {
-        // Add rows to the top
-        const rowsToAdd: string[][] = [];
-        for (let i = 0; i < EXPANSION_SIZE; i++) {
-          const newRow = generateCells(newBoard[0].length);
-          rowsToAdd.push(newRow);
-        }
-        newBoard.unshift(...rowsToAdd);
-        // Queue scroll adjustment
-        const scrollOffset = EXPANSION_SIZE * CELL_SIZE * zoom;
-        pendingScrollAdjustmentRef.current = {
-          x: currentScrollLeft,
-          y: currentScrollTop + scrollOffset,
-        };
-        console.log(`Expanded board to the top. New size: ${newBoard.length}x${newBoard[0].length}`);
-      }
 
-      setTimeout(() => {
-        isExpandingRef.current = false;
-      }, 500);
+        setTimeout(() => {
+          isExpandingRef.current = false;
+        }, 500);
 
-      return newBoard;
-    });
-  }, [zoom]);
+        return newBoard;
+      });
+    },
+    [zoom],
+  );
 
   const rowVirtualizer = useVirtualizer({
     count: rowCount,
@@ -186,7 +212,7 @@ export function GameBoard() {
         if (isDragging) {
           const deltaX = x - oldScrollLeft;
           const deltaY = y - oldScrollTop;
-          setDragStart(prev => ({
+          setDragStart((prev) => ({
             x: prev.x + deltaX,
             y: prev.y + deltaY,
           }));
@@ -209,7 +235,8 @@ export function GameBoard() {
     if (!scrollElement) return;
 
     const centerBoard = () => {
-      const { scrollWidth, scrollHeight, clientWidth, clientHeight } = scrollElement;
+      const { scrollWidth, scrollHeight, clientWidth, clientHeight } =
+        scrollElement;
       scrollElement.scrollLeft = (scrollWidth - clientWidth) / 2;
       scrollElement.scrollTop = (scrollHeight - clientHeight) / 2;
     };
@@ -225,33 +252,40 @@ export function GameBoard() {
     if (!scrollElement) return;
 
     const handleScroll = () => {
-      const { scrollLeft, scrollTop, scrollWidth, scrollHeight, clientWidth, clientHeight } = scrollElement;
+      const {
+        scrollLeft,
+        scrollTop,
+        scrollWidth,
+        scrollHeight,
+        clientWidth,
+        clientHeight,
+      } = scrollElement;
 
       const threshold = EXPANSION_THRESHOLD * CELL_SIZE * zoom;
 
       // Check if near right edge
       if (scrollLeft + clientWidth >= scrollWidth - threshold) {
-        generateMoreBoard('right');
+        generateMoreBoard("right");
       }
 
       // Check if near left edge
       if (scrollLeft <= threshold) {
-        generateMoreBoard('left');
+        generateMoreBoard("left");
       }
 
       // Check if near bottom edge
       if (scrollTop + clientHeight >= scrollHeight - threshold) {
-        generateMoreBoard('down');
+        generateMoreBoard("down");
       }
 
       // Check if near top edge
       if (scrollTop <= threshold) {
-        generateMoreBoard('up');
+        generateMoreBoard("up");
       }
     };
 
-    scrollElement.addEventListener('scroll', handleScroll);
-    return () => scrollElement.removeEventListener('scroll', handleScroll);
+    scrollElement.addEventListener("scroll", handleScroll);
+    return () => scrollElement.removeEventListener("scroll", handleScroll);
   }, [generateMoreBoard, zoom]);
 
   return (

@@ -1,85 +1,29 @@
 import type { ServerWebSocket } from "bun";
-import {
-  InfiniteCacaPalavras,
-  type Grid,
-  type Statistics,
-  type Position,
-} from "./game";
+import { InfiniteWordSearch } from "./game";
+import type {
+  Grid,
+  Statistics,
+  Position,
+  ChunkRequest,
+  RegionRequest,
+  ValidateRequest,
+  StatsRequest,
+  ChunkResponse,
+  RegionResponse,
+  ValidateResponse,
+  StatsResponse,
+  ErrorResponse,
+  WebSocketMessage,
+  WebSocketResponse,
+  WebSocketData,
+} from "./types";
 
-interface ChunkRequest {
-  type: "getChunk";
-  chunkRow: number;
-  chunkCol: number;
-}
-
-interface RegionRequest {
-  type: "getRegion";
-  startRow: number;
-  startCol: number;
-  endRow: number;
-  endCol: number;
-}
-
-interface ValidateRequest {
-  type: "validate";
-  coords: Position[];
-}
-
-interface StatsRequest {
-  type: "getStats";
-}
-
-interface ChunkResponse {
-  type: "chunk";
-  chunkRow: number;
-  chunkCol: number;
-  data: Grid;
-  chunkSize: number;
-}
-
-interface RegionResponse {
-  type: "region";
-  data: Grid;
-  startRow: number;
-  startCol: number;
-  endRow: number;
-  endCol: number;
-}
-
-interface ValidateResponse {
-  type: "validation";
-  result: string | null;
-  coords: Position[];
-}
-
-interface StatsResponse {
-  type: "stats";
-  data: Statistics;
-}
-
-interface ErrorResponse {
-  type: "error";
-  message: string;
-}
-
-type WebSocketMessage =
-  | ChunkRequest
-  | RegionRequest
-  | ValidateRequest
-  | StatsRequest;
-type WebSocketResponse =
-  | ChunkResponse
-  | RegionResponse
-  | ValidateResponse
-  | StatsResponse
-  | ErrorResponse;
-
-class CacaPalavrasServer {
-  private game: InfiniteCacaPalavras;
+class WordSearchServer {
+  private game: InfiniteWordSearch;
   private connectedClients: Set<ServerWebSocket<WebSocketData>> = new Set();
 
   constructor(chunkSize: number = 10, words?: string[]) {
-    this.game = new InfiniteCacaPalavras(chunkSize, words);
+    this.game = new InfiniteWordSearch(chunkSize, words);
   }
 
   handleConnection(ws: ServerWebSocket<WebSocketData>) {
@@ -236,12 +180,7 @@ class CacaPalavrasServer {
 }
 
 // Create server instance
-const server = new CacaPalavrasServer(10);
-
-type WebSocketData = {
-  createdAt: number;
-  authToken: string;
-};
+const server = new WordSearchServer(10);
 
 // Create Bun server with WebSocket support
 const bunServer = Bun.serve({
@@ -275,6 +214,6 @@ const bunServer = Bun.serve({
   },
 });
 
-console.log(`🚀 Caça Palavras WebSocket server started!`);
+console.log(`🚀 Word Search WebSocket server started!`);
 console.log(`📡 Server running at: http://localhost:${bunServer.port}`);
 console.log(`🔌 WebSocket endpoint: ws://localhost:${bunServer.port}`);
