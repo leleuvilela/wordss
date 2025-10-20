@@ -7,6 +7,8 @@ import {
   type WordPlacement,
   type Statistics,
 } from "./types";
+import { readFileSync } from "fs";
+import { join } from "path";
 
 class InfiniteWordSearch {
   private chunkSize: number;
@@ -28,41 +30,26 @@ class InfiniteWordSearch {
   }
 
   private getDefaultWords(): string[] {
-    return [
-      "PYTHON",
-      "ALGORITHM",
-      "COMPUTER",
-      "PROGRAM",
-      "CODE",
-      "DATA",
-      "MATRIX",
-      "VECTOR",
-      "FUNCTION",
-      "CLASS",
-      "OBJECT",
-      "METHOD",
-      "VARIABLE",
-      "LOOP",
-      "SYSTEM",
-      "NETWORK",
-      "DATABASE",
-      "FILE",
-      "MEMORY",
-      "PROCESS",
-      "THREAD",
-      "DEBUG",
-      "COMPILE",
-      "EXECUTE",
-      "LIBRARY",
-      "FRAMEWORK",
-      "INTERFACE",
-      "PROTOCOL",
-      "SERVER",
-      "CLIENT",
-      "RESOURCE",
-      "MODULE",
-      "PACKAGE",
-    ];
+    try {
+      const wordsFilePath = join(__dirname, "words.txt");
+      const fileContent = readFileSync(wordsFilePath, "utf-8");
+      const words = fileContent
+        .split("\n")
+        .map((word) => word.trim())
+        .filter((word) => word.length > 0);
+      return words;
+    } catch (error) {
+      console.error("Error reading words.txt, using fallback words:", error);
+      // Fallback to a few default words if file reading fails
+      return [
+        "PYTHON",
+        "ALGORITHM",
+        "COMPUTER",
+        "PROGRAM",
+        "CODE",
+        "DATA",
+      ];
+    }
   }
 
   private chunkCoordsToKey(coords: ChunkCoords): string {
