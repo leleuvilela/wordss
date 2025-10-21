@@ -1,0 +1,34 @@
+services:
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: wordss-server
+    ports:
+      - "3001:3001"
+    networks:
+      - wordss-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: wordss-web
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    networks:
+      - wordss-network
+    restart: unless-stopped
+
+networks:
+  wordss-network:
+    driver: bridge

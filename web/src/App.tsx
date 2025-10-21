@@ -2,7 +2,10 @@ import { GameBoard } from "./components/game-board";
 import { Header } from "./components/header";
 import { WebSocketProvider } from "./contexts/WebSocketContext";
 
-const WS_URL = "ws://localhost:3001";
+// Use environment variable if available, otherwise construct from current location
+const WS_URL = import.meta.env.VITE_WS_URL ||
+  (window.location.protocol === 'https:' ? 'wss://' : 'ws://') +
+  window.location.host + '/ws';
 
 function App() {
   return (
