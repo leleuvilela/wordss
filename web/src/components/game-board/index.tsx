@@ -2,33 +2,19 @@ import {
   useState,
   useRef,
   useEffect,
-  useCallback,
-  useLayoutEffect,
 } from "react";
 import { ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useBoard } from "../core/useBoard";
-import type { Grid, Position } from "@/types";
+import type { Position } from "@/types";
 
 // ==========================================
 // Constants
 // ==========================================
 
 const CELL_SIZE = 60; // pixels
-const INITIAL_CHUNKS = 20; // Load 20x20 chunks initially
 const CHUNK_LOAD_THRESHOLD = 2; // Load new chunks when within 2 chunks of edge
-
-// ==========================================
-// Types
-// ==========================================
-
-interface ChunkData {
-  data: Grid;
-  chunkSize: number;
-}
-
-type ChunkMap = Map<string, ChunkData>;
 
 // ==========================================
 // Helper Functions
@@ -38,13 +24,8 @@ function getChunkKey(chunkRow: number, chunkCol: number): string {
   return `${chunkRow},${chunkCol}`;
 }
 
-function parseChunkKey(key: string): [number, number] {
-  const [row, col] = key.split(",").map(Number);
-  return [row, col];
-}
-
 function getCellFromChunks(
-  chunks: ChunkMap,
+  chunks: ReturnType<typeof useBoard>["chunks"],
   globalRow: number,
   globalCol: number,
   chunkSize: number,
@@ -63,37 +44,6 @@ function getCellFromChunks(
   return chunk.data[localRow]?.[localCol] || "";
 }
 
-function getCellsBetween(start: Position, end: Position): Position[] | null {
-  const [startRow, startCol] = start;
-  const [endRow, endCol] = end;
-
-  const rowDiff = endRow - startRow;
-  const colDiff = endCol - startCol;
-
-  // Check if it's a valid line (horizontal, vertical, or diagonal)
-  const isHorizontal = rowDiff === 0;
-  const isVertical = colDiff === 0;
-  const isDiagonal = Math.abs(rowDiff) === Math.abs(colDiff);
-
-  if (!isHorizontal && !isVertical && !isDiagonal) {
-    return null; // Not a valid line
-  }
-
-  const cells: Position[] = [];
-  const steps = Math.max(Math.abs(rowDiff), Math.abs(colDiff));
-  const rowStep = rowDiff === 0 ? 0 : rowDiff / steps;
-  const colStep = colDiff === 0 ? 0 : colDiff / steps;
-
-  for (let i = 0; i <= steps; i++) {
-    cells.push([
-      startRow + Math.round(rowStep * i),
-      startCol + Math.round(colStep * i),
-    ]);
-  }
-
-  return cells;
-}
-
 function getPositionKey(pos: Position): string {
   return `${pos[0]},${pos[1]}`;
 }
@@ -103,19 +53,19 @@ function getPositionKey(pos: Position): string {
 // ==========================================
 
 export function GameBoard() {
-  const { getChunk, validate, lastMessage, connectionStatus } = useBoard();
+  const {
+    chunks,
+    chunkSize,
+    loadedChunkBounds,
+    selectedCells,
+    validatedWords,
+    connectionStatus,
+    requestChunksInRange,
+    handleCellClick,
+  } = useBoard();
 
-  // State
+  // UI State (kept in component)
   const [zoom, setZoom] = useState(1);
-  const [chunks, setChunks] = useState<ChunkMap>(new Map());
-  const [chunkSize, setChunkSize] = useState(16); // Default, will be updated from server
-  const [loadedChunkBounds, setLoadedChunkBounds] = useState({
-    minRow: 0,
-    maxRow: 0,
-    minCol: 0,
-    maxCol: 0,
-  });
-
   const parentRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -125,9 +75,6 @@ export function GameBoard() {
     x: number;
     y: number;
   } | null>(null);
-  const [selectedCells, setSelectedCells] = useState<Position[]>([]);
-  const [validatedWords, setValidatedWords] = useState<Set<string>>(new Set());
-  const requestedChunksRef = useRef<Set<string>>(new Set());
   const hasDraggedRef = useRef(false);
 
   // Calculate board dimensions based on loaded chunks
@@ -135,110 +82,6 @@ export function GameBoard() {
     (loadedChunkBounds.maxRow - loadedChunkBounds.minRow + 1) * chunkSize;
   const colCount =
     (loadedChunkBounds.maxCol - loadedChunkBounds.minCol + 1) * chunkSize;
-
-  // ==========================================
-  // Chunk Management
-  // ==========================================
-
-  const requestChunk = useCallback(
-    (chunkRow: number, chunkCol: number) => {
-      // Only request non-negative chunks
-      if (chunkRow < 0 || chunkCol < 0) return;
-
-      const key = getChunkKey(chunkRow, chunkCol);
-      if (requestedChunksRef.current.has(key)) return;
-
-      requestedChunksRef.current.add(key);
-      console.log(`Requesting chunk [${chunkRow}, ${chunkCol}]`);
-      getChunk({ chunkRow, chunkCol });
-    },
-    [getChunk],
-  );
-
-  const requestChunksInRange = useCallback(
-    (minRow: number, maxRow: number, minCol: number, maxCol: number) => {
-      for (let row = minRow; row <= maxRow; row++) {
-        for (let col = minCol; col <= maxCol; col++) {
-          requestChunk(row, col);
-        }
-      }
-    },
-    [requestChunk],
-  );
-
-  // ==========================================
-  // WebSocket Message Handling
-  // ==========================================
-
-  useEffect(() => {
-    if (!lastMessage) return;
-
-    console.log("Received message:", lastMessage);
-
-    if (lastMessage.type === "chunk") {
-      const {
-        chunkRow,
-        chunkCol,
-        data,
-        chunkSize: serverChunkSize,
-      } = lastMessage;
-      const key = getChunkKey(chunkRow, chunkCol);
-
-      console.log(`Received chunk [${chunkRow}, ${chunkCol}]`);
-
-      setChunkSize(serverChunkSize);
-      setChunks((prev) => {
-        const next = new Map(prev);
-        next.set(key, { data, chunkSize: serverChunkSize });
-        return next;
-      });
-
-      // Update chunk bounds
-      setLoadedChunkBounds((prev) => ({
-        minRow: Math.min(prev.minRow, chunkRow),
-        maxRow: Math.max(prev.maxRow, chunkRow),
-        minCol: Math.min(prev.minCol, chunkCol),
-        maxCol: Math.max(prev.maxCol, chunkCol),
-      }));
-
-      // Remove from requested set after a delay to prevent duplicate requests
-      setTimeout(() => {
-        requestedChunksRef.current.delete(key);
-      }, 1000);
-    } else if (lastMessage.type === "validation") {
-      const { result, coords } = lastMessage;
-
-      console.log("Validation result:", result, coords);
-
-      if (result) {
-        // Valid word found - add all coordinates to validated set
-        setValidatedWords((prev) => {
-          const next = new Set(prev);
-          coords.forEach((pos) => {
-            next.add(getPositionKey(pos));
-          });
-          return next;
-        });
-      }
-
-      // Clear selection after validation
-      setSelectedCells([]);
-    }
-  }, [lastMessage]);
-
-  // ==========================================
-  // Initial Load
-  // ==========================================
-
-  useEffect(() => {
-    // Load initial chunks starting at (0, 0) - only once on mount
-    for (let row = 0; row < INITIAL_CHUNKS; row++) {
-      for (let col = 0; col < INITIAL_CHUNKS; col++) {
-        requestChunk(row, col);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only load initial chunks once
 
   // ==========================================
   // Virtualizers
@@ -317,43 +160,6 @@ export function GameBoard() {
     setIsDragging(false);
     setDragStart({ x: 0, y: 0 });
   };
-
-  // ==========================================
-  // Cell Selection and Validation
-  // ==========================================
-
-  const handleCellClick = useCallback(
-    (row: number, col: number) => {
-      // Don't select cells if user was dragging
-      if (hasDraggedRef.current) return;
-
-      const newCell: Position = [row, col];
-
-      setSelectedCells((prev) => {
-        if (prev.length === 0) {
-          // First cell selection
-          return [newCell];
-        } else if (prev.length === 1) {
-          // Second cell selection - validate the word
-          const cells = getCellsBetween(prev[0], newCell);
-
-          if (cells) {
-            // Valid line - send validation request
-            console.log("Validating cells:", cells);
-            validate(cells);
-            return cells; // Show the selected path
-          } else {
-            // Invalid line - reset and start with this cell
-            return [newCell];
-          }
-        } else {
-          // Already selected - start new selection
-          return [newCell];
-        }
-      });
-    },
-    [validate],
-  );
 
   // ==========================================
   // Auto-load Chunks on Scroll
@@ -594,7 +400,12 @@ export function GameBoard() {
                       height: `${virtualRow.size}px`,
                       transform: `translateX(${virtualColumn.start}px)`,
                     }}
-                    onClick={() => handleCellClick(globalRow, globalCol)}
+                    onClick={() => {
+                      // Don't select cells if user was dragging
+                      if (!hasDraggedRef.current) {
+                        handleCellClick(globalRow, globalCol);
+                      }
+                    }}
                     onMouseEnter={(e) => {
                       if (!isDragging) {
                         setHoveredCell((prev) => {

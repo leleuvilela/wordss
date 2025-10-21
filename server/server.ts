@@ -16,7 +16,11 @@ import type {
   WebSocketMessage,
   WebSocketResponse,
   WebSocketData,
+  WordFoundResponse,
+  FoundWordsListResponse,
 } from "./types";
+
+const GAME_CHANNEL = "game";
 
 class WordSearchServer {
   private game: InfiniteWordSearch;
@@ -28,20 +32,31 @@ class WordSearchServer {
 
   handleConnection(ws: ServerWebSocket<WebSocketData>) {
     console.log("🔌 New client connected");
-    this.connectedClients.add(ws);
 
-    // Send welcome message with initial stats
+    // Send stats
     const stats = this.game.getStatistics();
     const welcomeMessage: StatsResponse = {
       type: "stats",
       data: stats,
     };
     ws.send(JSON.stringify(welcomeMessage));
+
+    // Send list of already found words
+    const foundWords = this.game.getFoundWords();
+    const foundWordsMessage: FoundWordsListResponse = {
+      type: "foundWordsList",
+      foundWords: foundWords,
+    };
+    ws.send(JSON.stringify(foundWordsMessage));
+
+    ws.subscribe(GAME_CHANNEL);
+    this.connectedClients.add(ws);
   }
 
   handleDisconnection(ws: ServerWebSocket<WebSocketData>) {
     console.log("❌ Client disconnected");
     this.connectedClients.delete(ws);
+    ws.unsubscribe(GAME_CHANNEL);
   }
 
   handleMessage(ws: ServerWebSocket<WebSocketData>, message: string) {
@@ -60,6 +75,9 @@ class WordSearchServer {
           break;
         case "getStats":
           this.handleStatsRequest(ws);
+          break;
+        case "getFoundWords":
+          this.handleGetFoundWords(ws);
           break;
         default:
           this.sendError(ws, "Unknown message type");
@@ -142,6 +160,28 @@ class WordSearchServer {
     };
 
     ws.send(JSON.stringify(response));
+
+    // If a word was found, broadcast it to all players
+    if (result) {
+      console.log(`🎉 Word found: ${result}`);
+      const wordFoundMessage: WordFoundResponse = {
+        type: "wordFound",
+        word: result,
+        coords: request.coords,
+      };
+      ws.publish(GAME_CHANNEL, JSON.stringify(wordFoundMessage));
+    }
+  }
+
+  private handleGetFoundWords(ws: ServerWebSocket<WebSocketData>) {
+    console.log("📉 Fonded Words request");
+
+    const foundWords = this.game.getFoundWords();
+    const foundWordsMessage: FoundWordsListResponse = {
+      type: "foundWordsList",
+      foundWords: foundWords,
+    };
+    ws.send(JSON.stringify(foundWordsMessage));
   }
 
   private handleStatsRequest(ws: ServerWebSocket<WebSocketData>) {
@@ -163,15 +203,6 @@ class WordSearchServer {
       message,
     };
     ws.send(JSON.stringify(error));
-  }
-
-  broadcast(message: WebSocketResponse) {
-    const messageStr = JSON.stringify(message);
-    for (const client of this.connectedClients) {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(messageStr);
-      }
-    }
   }
 
   getConnectedClients(): number {

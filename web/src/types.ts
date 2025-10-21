@@ -34,6 +34,8 @@ export interface WordPlacement {
   startCol: number;
   direction: Direction;
   chunkCoords: ChunkCoords;
+  wordId: string;
+  founded: boolean;
 }
 
 export interface Statistics {
@@ -71,6 +73,10 @@ export interface StatsRequest {
   type: "getStats";
 }
 
+export interface FoundWordsRequest {
+  type: "getFoundWords";
+}
+
 export interface ChunkResponse {
   type: "chunk";
   chunkRow: number;
@@ -104,10 +110,26 @@ export interface ErrorResponse {
   message: string;
 }
 
+export interface WordFoundResponse {
+  type: "wordFound";
+  word: string;
+  coords: Position[];
+  foundBy?: string;
+}
+
+export interface FoundWordsListResponse {
+  type: "foundWordsList";
+  foundWords: Array<{
+    word: string;
+    coords: Position[];
+  }>;
+}
+
 export type WebSocketMessage =
   | ChunkRequest
   | RegionRequest
   | ValidateRequest
+  | FoundWordsRequest
   | StatsRequest;
 
 export type WebSocketResponse =
@@ -115,7 +137,9 @@ export type WebSocketResponse =
   | RegionResponse
   | ValidateResponse
   | StatsResponse
-  | ErrorResponse;
+  | ErrorResponse
+  | WordFoundResponse
+  | FoundWordsListResponse;
 
 export type WebSocketData = {
   createdAt: number;

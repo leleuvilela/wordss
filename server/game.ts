@@ -14,17 +14,19 @@ class InfiniteWordSearch {
   private chunkSize: number;
   private chunks: Map<string, Grid>;
   private words: string[];
-  private placedWords: WordPlacement[];
+  private placedWords: Map<string, WordPlacement>;
   private wordPositions: Map<string, Position[]>;
   private generatedChunks: Set<string>;
+  private foundWords: Map<string, { word: string; coords: Position[] }>;
 
   constructor(chunkSize: number = 10, words?: string[]) {
     this.chunkSize = chunkSize;
     this.chunks = new Map();
     this.words = words || this.getDefaultWords();
-    this.placedWords = [];
+    this.placedWords = new Map();
     this.wordPositions = new Map();
     this.generatedChunks = new Set();
+    this.foundWords = new Map();
 
     this.generateChunk(0, 0);
   }
@@ -41,14 +43,7 @@ class InfiniteWordSearch {
     } catch (error) {
       console.error("Error reading words.txt, using fallback words:", error);
       // Fallback to a few default words if file reading fails
-      return [
-        "PYTHON",
-        "ALGORITHM",
-        "COMPUTER",
-        "PROGRAM",
-        "CODE",
-        "DATA",
-      ];
+      return ["PYTHON", "ALGORITHM", "COMPUTER", "PROGRAM", "CODE", "DATA"];
     }
   }
 
@@ -221,9 +216,11 @@ class InfiniteWordSearch {
       startCol: col,
       direction,
       chunkCoords: [chunkRow, chunkCol],
+      wordId,
+      founded: false,
     };
 
-    this.placedWords.push(placement);
+    this.placedWords.set(wordId, placement);
     this.wordPositions.set(wordId, positions);
   }
 
@@ -313,6 +310,19 @@ class InfiniteWordSearch {
           this.arraysEqual(coords, positions) ||
           this.arraysEqual(coords, [...positions].reverse())
         ) {
+          const word = this.placedWords.get(wordId);
+
+          if (!word || word.founded) {
+            return null;
+          }
+
+          // Mark as founded and add to foundWords state
+          this.placedWords.set(wordId, { ...word, founded: true });
+          this.foundWords.set(wordId, {
+            word: word.word,
+            coords: positions,
+          });
+
           const wordName = wordId.split("_")[0];
           return wordName!;
         }
@@ -407,7 +417,7 @@ class InfiniteWordSearch {
     if (showWords) {
       const wordsInRegion = new Set<string>();
 
-      for (const placement of this.placedWords) {
+      for (const placement of this.placedWords.values()) {
         const positions = this.getWordPositions(placement);
         const inRegion = positions.some(
           ([r, c]) =>
@@ -426,6 +436,13 @@ class InfiniteWordSearch {
         }
       }
     }
+  }
+
+  public getSampleWords() {
+    const wordIds = Array.from(this.wordPositions.keys());
+    const index = Math.floor(Math.random() * wordIds.length);
+
+    return this.wordPositions.get(wordIds[index]!);
   }
 
   private getWordPositions(placement: WordPlacement): Position[] {
@@ -448,11 +465,15 @@ class InfiniteWordSearch {
 
     return {
       chunksGenerated: this.chunks.size,
-      placedWords: this.placedWords.length,
+      placedWords: this.placedWords.size,
       totalCells: totalCells,
       bounds: bounds,
       areaSize: [bounds[2] - bounds[0] + 1, bounds[3] - bounds[1] + 1],
     };
+  }
+
+  public getFoundWords(): Array<{ word: string; coords: Position[] }> {
+    return Array.from(this.foundWords.values());
   }
 }
 
@@ -523,16 +544,12 @@ function main(): void {
     [8, 9],
     [9, 9],
   ];
-  const letters = testCoords
-    .map(([r, c]) => wordSearch.getCell(r, c))
-    .join("");
+  const letters = testCoords.map(([r, c]) => wordSearch.getCell(r, c)).join("");
   const result = wordSearch.validateSelection(testCoords);
 
   console.log(`\nTesting coordinates ${JSON.stringify(testCoords)}:`);
   console.log(`Letters: ${letters}`);
-  console.log(
-    `Result: ${result ? "VALID!" : "No word found"}`,
-  );
+  console.log(`Result: ${result ? "VALID!" : "No word found"}`);
 
   console.log("\n" + "=".repeat(60));
   console.log("INFINITE GRID STATISTICS");
@@ -544,8 +561,9 @@ function main(): void {
   console.log(`Total cells: ${stats.totalCells}`);
   console.log(`Bounds: ${JSON.stringify(stats.bounds)}`);
   console.log(`Area size: ${JSON.stringify(stats.areaSize)}`);
+  console.log(`Word: ${JSON.stringify(wordSearch.getSampleWords())}`);
 }
 
 export { InfiniteWordSearch };
 
-main();
+// main();
