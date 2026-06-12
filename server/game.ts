@@ -219,7 +219,9 @@ class InfiniteWordSearch {
       direction,
       chunkCoords: [chunkRow, chunkCol],
       wordId,
-      founded: false,
+      // Chunks are regenerated deterministically, so a restored word may
+      // already be in foundWords before its chunk is (re)generated
+      founded: this.foundWords.has(wordId),
     };
 
     this.placedWords.set(wordId, placement);
@@ -294,7 +296,9 @@ class InfiniteWordSearch {
     return region;
   }
 
-  public validateSelection(coords: Position[]): string | null {
+  public validateSelection(
+    coords: Position[],
+  ): { wordId: string; word: string; coords: Position[] } | null {
     if (!coords || coords.length === 0) {
       return null;
     }
@@ -325,7 +329,7 @@ class InfiniteWordSearch {
             coords: positions,
           });
 
-          return word.word;
+          return { wordId, word: word.word, coords: positions };
         }
       }
     }
@@ -472,6 +476,22 @@ class InfiniteWordSearch {
 
   public getFoundWords(): Array<{ word: string; coords: Position[] }> {
     return Array.from(this.foundWords.values());
+  }
+
+  /** Re-apply persisted found words (e.g. loaded from storage on boot). */
+  public restoreFoundWords(
+    entries: Array<{ wordId: string; word: string; coords: Position[] }>,
+  ): void {
+    for (const entry of entries) {
+      this.foundWords.set(entry.wordId, {
+        word: entry.word,
+        coords: entry.coords,
+      });
+      const placement = this.placedWords.get(entry.wordId);
+      if (placement) {
+        this.placedWords.set(entry.wordId, { ...placement, founded: true });
+      }
+    }
   }
 }
 

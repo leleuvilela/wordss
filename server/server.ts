@@ -1,5 +1,6 @@
 import type { ServerWebSocket } from "bun";
 import { InfiniteWordSearch } from "./game";
+import { GameStorage } from "./storage";
 import type {
   ChunkRequest,
   RegionRequest,
@@ -19,10 +20,18 @@ const GAME_CHANNEL = "game";
 
 class WordSearchServer {
   private game: InfiniteWordSearch;
+  private storage: GameStorage;
   private connectedClients: Set<ServerWebSocket<WebSocketData>> = new Set();
 
   constructor(chunkSize: number = 10, words?: string[]) {
     this.game = new InfiniteWordSearch(chunkSize, words);
+    this.storage = new GameStorage();
+
+    const persisted = this.storage.loadFoundWords();
+    if (persisted.length > 0) {
+      this.game.restoreFoundWords(persisted);
+      console.log(`💾 Restored ${persisted.length} found word(s) from storage`);
+    }
   }
 
   handleConnection(ws: ServerWebSocket<WebSocketData>) {
@@ -143,22 +152,24 @@ class WordSearchServer {
       `✅ Validation request for ${request.coords.length} coordinates`,
     );
 
-    const result = this.game.validateSelection(request.coords);
+    const found = this.game.validateSelection(request.coords);
 
     const response: ValidateResponse = {
       type: "validation",
-      result,
+      result: found?.word ?? null,
       coords: request.coords,
     };
 
     ws.send(JSON.stringify(response));
 
-    // If a word was found, broadcast it to all players
-    if (result) {
-      console.log(`🎉 Word found: ${result}`);
+    // If a word was found, persist it and broadcast to all players
+    if (found) {
+      console.log(`🎉 Word found: ${found.word}`);
+      this.storage.saveFoundWord(found);
+
       const wordFoundMessage: WordFoundResponse = {
         type: "wordFound",
-        word: result,
+        word: found.word,
         coords: request.coords,
       };
       ws.publish(GAME_CHANNEL, JSON.stringify(wordFoundMessage));

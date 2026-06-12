@@ -169,9 +169,7 @@ export function GameBoard() {
     const scrollElement = parentRef.current;
     if (!scrollElement) return;
 
-    const handleScroll = () => {
-      // Throttle scroll handler to prevent excessive chunk requests
-
+    const checkEdges = () => {
       const {
         scrollLeft,
         scrollTop,
@@ -229,9 +227,15 @@ export function GameBoard() {
       }
     };
 
-    scrollElement.addEventListener("scroll", handleScroll);
+    scrollElement.addEventListener("scroll", checkEdges);
+
+    // Also check immediately: zoom-out or new chunks can expose edges
+    // without any scroll event. rAF waits for the post-zoom re-measure.
+    const rafId = requestAnimationFrame(checkEdges);
+
     return () => {
-      scrollElement.removeEventListener("scroll", handleScroll);
+      scrollElement.removeEventListener("scroll", checkEdges);
+      cancelAnimationFrame(rafId);
     };
   }, [loadedChunkBounds, chunkSize, zoom, requestChunksInRange]);
 
@@ -279,24 +283,28 @@ export function GameBoard() {
     return Math.max(0, globalCol); // Ensure non-negative
   };
 
+  const isConnected = connectionStatus === "Connected";
+  const statusLabel =
+    {
+      Connected: "conectado",
+      Connecting: "conectando…",
+      Closing: "encerrando…",
+      Disconnected: "desconectado",
+      Uninstantiated: "iniciando…",
+    }[connectionStatus] ?? connectionStatus.toLowerCase();
+
   return (
-    <div className="flex-1 relative overflow-hidden bg-gray-50">
+    <div className="flex-1 relative overflow-hidden bg-base">
       {/* Connection Status */}
-      <div className="absolute top-4 left-4 z-10 bg-white px-3 py-1 rounded-md shadow-sm border">
-        <span className="text-sm font-medium">
-          Status:{" "}
-          <span
-            className={
-              connectionStatus === "Connected"
-                ? "text-green-600"
-                : "text-orange-600"
-            }
-          >
-            {connectionStatus}
-          </span>
-        </span>
-        <span className="text-xs text-gray-500 ml-2">
-          Chunks: {chunks.size}
+      <div className="absolute top-4 left-4 z-10 flex items-center gap-2 rounded-lg border border-surface0 bg-mantle px-3 py-1.5 shadow-sm">
+        <span
+          className={`inline-block size-2 rounded-full ${
+            isConnected ? "bg-green" : "bg-yellow"
+          }`}
+        />
+        <span className="font-mono text-xs text-subtext1">{statusLabel}</span>
+        <span className="font-mono text-[10px] text-overlay1">
+          chunks {chunks.size}
         </span>
       </div>
 
@@ -306,7 +314,7 @@ export function GameBoard() {
           onClick={handleZoomOut}
           size="icon"
           variant="outline"
-          className="bg-white"
+          className="bg-mantle shadow-sm"
         >
           <ZoomOut className="h-4 w-4" />
         </Button>
@@ -314,7 +322,7 @@ export function GameBoard() {
           onClick={handleZoomIn}
           size="icon"
           variant="outline"
-          className="bg-white"
+          className="bg-mantle shadow-sm"
         >
           <ZoomIn className="h-4 w-4" />
         </Button>
@@ -323,13 +331,15 @@ export function GameBoard() {
       {/* Coordinate Popover */}
       {hoveredCell && (
         <div
-          className="fixed z-50 bg-black/80 text-white px-2 py-1 rounded text-xs font-mono pointer-events-none"
+          className="fixed z-50 pointer-events-none rounded-md border border-surface1 bg-crust px-2 py-1 font-mono text-xs text-subtext1 shadow-md"
           style={{
             left: `${hoveredCell.x + 10}px`,
             top: `${hoveredCell.y + 10}px`,
           }}
         >
-          [{hoveredCell.row}, {hoveredCell.col}]
+          <span className="text-mauve">[</span>
+          {hoveredCell.row}, {hoveredCell.col}
+          <span className="text-mauve">]</span>
         </div>
       )}
 
@@ -381,14 +391,18 @@ export function GameBoard() {
                 );
 
                 let cellClass =
-                  "flex items-center justify-center border border-gray-300 transition-colors absolute top-0 left-0 cursor-pointer";
+                  "flex items-center justify-center border border-surface0/60 transition-colors duration-150 absolute top-0 left-0 cursor-pointer";
+                let letterClass = "select-none font-mono font-medium";
 
                 if (isValidated) {
-                  cellClass += " bg-green-500/40";
+                  cellClass += " bg-green/20";
+                  letterClass += " text-green";
                 } else if (isSelected) {
-                  cellClass += " bg-blue-400/40";
+                  cellClass += " bg-mauve/25";
+                  letterClass += " text-mauve";
                 } else {
-                  cellClass += " bg-white hover:bg-blue-50";
+                  cellClass += " bg-base hover:bg-surface0";
+                  letterClass += " text-subtext0";
                 }
 
                 return (
@@ -433,7 +447,7 @@ export function GameBoard() {
                     }}
                   >
                     <span
-                      className="text-gray-700 select-none font-medium"
+                      className={letterClass}
                       style={{
                         fontSize: `${14 * zoom}px`,
                       }}

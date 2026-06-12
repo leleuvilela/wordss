@@ -1,10 +1,18 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR" data-theme="mocha">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <script>
+      // Apply saved theme before first paint to avoid a flash
+      const theme =
+        localStorage.getItem("theme") === "latte" ? "latte" : "mocha";
+      document.documentElement.dataset.theme = theme;
+      document.documentElement.style.backgroundColor =
+        theme === "latte" ? "#eff1f5" : "#1e1e2e";
+    </script>
+    <link rel="icon" type="image/svg+xml" href="/mark.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>web-wordss</title>
+    <title>wordss · caça-palavras infinito</title>
   </head>
   <body>
     <div id="root"></div>
