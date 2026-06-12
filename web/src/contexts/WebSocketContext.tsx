@@ -1,17 +1,7 @@
-import type { WebSocketMessage, WebSocketResponse } from "@/types";
-import { createContext, useContext, type ReactNode } from "react";
+import type { WebSocketResponse } from "@/types";
+import { type ReactNode } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
-
-interface WebSocketContextType {
-  sendMessage: (message: WebSocketMessage) => void;
-  lastMessage: WebSocketResponse | null;
-  readyState: ReadyState;
-  connectionStatus: string;
-}
-
-const WebSocketContext = createContext<WebSocketContextType | undefined>(
-  undefined,
-);
+import { WebSocketContext } from "./useWebSocketContext";
 
 interface WebSocketProviderProps {
   children: ReactNode;
@@ -46,14 +36,4 @@ export function WebSocketProvider({ children, url }: WebSocketProviderProps) {
       {children}
     </WebSocketContext.Provider>
   );
-}
-
-export function useWebSocketContext() {
-  const context = useContext(WebSocketContext);
-  if (context === undefined) {
-    throw new Error(
-      "useWebSocketContext must be used within a WebSocketProvider",
-    );
-  }
-  return context;
 }

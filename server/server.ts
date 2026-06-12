@@ -1,20 +1,15 @@
 import type { ServerWebSocket } from "bun";
 import { InfiniteWordSearch } from "./game";
 import type {
-  Grid,
-  Statistics,
-  Position,
   ChunkRequest,
   RegionRequest,
   ValidateRequest,
-  StatsRequest,
   ChunkResponse,
   RegionResponse,
   ValidateResponse,
   StatsResponse,
   ErrorResponse,
   WebSocketMessage,
-  WebSocketResponse,
   WebSocketData,
   WordFoundResponse,
   FoundWordsListResponse,
@@ -94,14 +89,11 @@ class WordSearchServer {
   ) {
     console.log(`📦 Chunk request: (${request.chunkRow}, ${request.chunkCol})`);
 
-    // Generate/ensure chunk exists
-    this.game.expandToPosition(request.chunkRow * 10, request.chunkCol * 10);
-
-    // Get the chunk data
-    const startRow = request.chunkRow * 10;
-    const startCol = request.chunkCol * 10;
-    const endRow = startRow + 9;
-    const endCol = startCol + 9;
+    const chunkSize = this.game.getChunkSize();
+    const startRow = request.chunkRow * chunkSize;
+    const startCol = request.chunkCol * chunkSize;
+    const endRow = startRow + chunkSize - 1;
+    const endCol = startCol + chunkSize - 1;
 
     const chunkData = this.game.getRegion(startRow, startCol, endRow, endCol);
 
@@ -110,7 +102,7 @@ class WordSearchServer {
       chunkRow: request.chunkRow,
       chunkCol: request.chunkCol,
       data: chunkData,
-      chunkSize: 10,
+      chunkSize,
     };
 
     ws.send(JSON.stringify(response));
@@ -174,7 +166,7 @@ class WordSearchServer {
   }
 
   private handleGetFoundWords(ws: ServerWebSocket<WebSocketData>) {
-    console.log("📉 Fonded Words request");
+    console.log("📋 Found words request");
 
     const foundWords = this.game.getFoundWords();
     const foundWordsMessage: FoundWordsListResponse = {
@@ -215,19 +207,22 @@ const server = new WordSearchServer(10);
 
 // Create Bun server with WebSocket support
 const bunServer = Bun.serve({
-  port: 3001,
+  port: Number(process.env.PORT ?? 3000),
   fetch(req, server) {
-    const cookies = new Bun.CookieMap(req.headers.get("cookie")!);
+    const cookies = new Bun.CookieMap(req.headers.get("cookie") ?? "");
 
-    server.upgrade(req, {
+    const upgraded = server.upgrade(req, {
       // this object must conform to WebSocketData
       data: {
         createdAt: Date.now(),
-        authToken: cookies.get("X-Token")!,
+        authToken: cookies.get("X-Token") ?? "",
       },
     });
 
-    return undefined;
+    if (upgraded) return undefined;
+
+    // Plain HTTP request (e.g. healthcheck)
+    return new Response("Word Search WebSocket server", { status: 200 });
   },
   websocket: {
     data: {} as WebSocketData,

@@ -1,4 +1,4 @@
-import { useWebSocketContext } from "@/contexts/WebSocketContext";
+import { useWebSocketContext } from "@/contexts/useWebSocketContext";
 import type {
   Position,
   Grid,

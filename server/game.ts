@@ -107,7 +107,9 @@ class InfiniteWordSearch {
     for (let i = 0; i < numWords; i++) {
       const wordIndex = Math.abs(Math.floor(random() * this.words.length));
       const word = this.words[wordIndex]?.toUpperCase();
-      this.placeWordInChunk(word!, chunkRow, chunkCol, random);
+      if (word) {
+        this.placeWordInChunk(word, chunkRow, chunkCol, random);
+      }
     }
 
     this.fillEmptyCellsInChunk(chunkRow, chunkCol, random);
@@ -323,8 +325,7 @@ class InfiniteWordSearch {
             coords: positions,
           });
 
-          const wordName = wordId.split("_")[0];
-          return wordName!;
+          return word.word;
         }
       }
     }
@@ -438,11 +439,8 @@ class InfiniteWordSearch {
     }
   }
 
-  public getSampleWords() {
-    const wordIds = Array.from(this.wordPositions.keys());
-    const index = Math.floor(Math.random() * wordIds.length);
-
-    return this.wordPositions.get(wordIds[index]!);
+  public getChunkSize(): number {
+    return this.chunkSize;
   }
 
   private getWordPositions(placement: WordPlacement): Position[] {
@@ -492,12 +490,13 @@ function main(): void {
   wordSearch.displayRegion(25, 25, 10);
 
   console.log("\nExpanding to position (-15, -15)...");
-  wordSearch.expandToPosition(-15, -15);
-  wordSearch.displayRegion(-15, -15, 10);
+  wordSearch.expandToPosition(15, 15);
+  wordSearch.expandToPosition(16, 15);
+  wordSearch.expandToPosition(17, 15);
+  wordSearch.expandToPosition(9, 9);
 
   console.log("\nExpanding to position (-150, -150)...");
-  wordSearch.expandToPosition(-150, -150);
-  wordSearch.displayRegion(-15, -15, 100);
+  wordSearch.expandToPosition(20, 20);
 
   console.log("\n" + "=".repeat(60));
   console.log("VALIDATION TEST");
@@ -561,9 +560,11 @@ function main(): void {
   console.log(`Total cells: ${stats.totalCells}`);
   console.log(`Bounds: ${JSON.stringify(stats.bounds)}`);
   console.log(`Area size: ${JSON.stringify(stats.areaSize)}`);
-  console.log(`Word: ${JSON.stringify(wordSearch.getSampleWords())}`);
 }
 
 export { InfiniteWordSearch };
 
-// main();
+// Run the demo only when executed directly (`bun game.ts`), not when imported
+if (import.meta.main) {
+  main();
+}
