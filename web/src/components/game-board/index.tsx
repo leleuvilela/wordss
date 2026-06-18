@@ -2,8 +2,9 @@ import {
   useState,
   useRef,
   useEffect,
+  useMemo,
 } from "react";
-import { ZoomIn, ZoomOut } from "lucide-react";
+import { ZoomIn, ZoomOut, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useBoard } from "../core/useBoard";
@@ -15,6 +16,10 @@ import type { Position } from "@/types";
 
 const CELL_SIZE = 60; // pixels
 const CHUNK_LOAD_THRESHOLD = 2; // Load new chunks when within 2 chunks of edge
+
+// Debug-only: highlight word cells in red. Build-time env, defaults off.
+// Requires the server to run with DEBUG_WORDS=true to receive coordinates.
+const DEBUG_WORDS = import.meta.env.VITE_DEBUG_WORDS === "true";
 
 // ==========================================
 // Helper Functions
@@ -59,13 +64,18 @@ export function GameBoard() {
     loadedChunkBounds,
     selectedCells,
     validatedWords,
+    visibleWords,
     connectionStatus,
     requestChunksInRange,
+    requestVisibleWords,
     handleCellClick,
   } = useBoard();
 
   // UI State (kept in component)
   const [zoom, setZoom] = useState(1);
+  // Mobile-only: collapse state for the bottom-sheet word list. Ignored on
+  // desktop, where the list is always shown (see sm:block below).
+  const [wordsOpen, setWordsOpen] = useState(false);
   const parentRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -269,6 +279,56 @@ export function GameBoard() {
   }, [zoom]); // Only re-measure when zoom changes, not when virtualizers change
 
   // ==========================================
+  // Request Words Visible in the Current Viewport
+  // ==========================================
+
+  useEffect(() => {
+    const scrollElement = parentRef.current;
+    if (!scrollElement) return;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const update = () => {
+      const cell = CELL_SIZE * zoom;
+      const rowOffset = loadedChunkBounds.minRow * chunkSize;
+      const colOffset = loadedChunkBounds.minCol * chunkSize;
+
+      const { scrollTop, scrollLeft, clientHeight, clientWidth } =
+        scrollElement;
+
+      const startRow = Math.max(0, Math.floor(scrollTop / cell) + rowOffset);
+      const endRow = Math.max(
+        0,
+        Math.ceil((scrollTop + clientHeight) / cell) + rowOffset,
+      );
+      const startCol = Math.max(0, Math.floor(scrollLeft / cell) + colOffset);
+      const endCol = Math.max(
+        0,
+        Math.ceil((scrollLeft + clientWidth) / cell) + colOffset,
+      );
+
+      requestVisibleWords(startRow, startCol, endRow, endCol);
+    };
+
+    const onScroll = () => {
+      clearTimeout(timer);
+      timer = setTimeout(update, 250);
+    };
+
+    scrollElement.addEventListener("scroll", onScroll);
+
+    // Initial / dependency-change refresh (debounced so rapid zoom or chunk
+    // loads coalesce into a single request).
+    clearTimeout(timer);
+    timer = setTimeout(update, 250);
+
+    return () => {
+      clearTimeout(timer);
+      scrollElement.removeEventListener("scroll", onScroll);
+    };
+  }, [zoom, loadedChunkBounds, chunkSize, chunks.size, requestVisibleWords]);
+
+  // ==========================================
   // Render
   // ==========================================
 
@@ -282,6 +342,23 @@ export function GameBoard() {
     const globalCol = virtualIndex + loadedChunkBounds.minCol * chunkSize;
     return Math.max(0, globalCol); // Ensure non-negative
   };
+
+  // Debug: set of "row,col" keys for every word cell, used to paint them red.
+  const debugWordCells = useMemo(() => {
+    const set = new Set<string>();
+    if (!DEBUG_WORDS) return set;
+    for (const w of visibleWords) {
+      w.coords?.forEach((pos) => set.add(getPositionKey(pos)));
+    }
+    return set;
+  }, [visibleWords]);
+
+  const sortedVisibleWords = [...visibleWords].sort((a, b) => {
+    // Unfound first, then alphabetical
+    if (a.founded !== b.founded) return a.founded ? 1 : -1;
+    return a.word.localeCompare(b.word);
+  });
+  const foundCount = visibleWords.filter((w) => w.founded).length;
 
   const isConnected = connectionStatus === "Connected";
   const statusLabel =
@@ -326,6 +403,52 @@ export function GameBoard() {
         >
           <ZoomIn className="h-4 w-4" />
         </Button>
+      </div>
+
+      {/* Visible Words — floating panel on desktop, collapsible bottom sheet on mobile */}
+      <div className="absolute bottom-4 left-4 right-4 z-10 flex max-h-[55vh] flex-col overflow-hidden rounded-lg border border-surface0 bg-mantle shadow-sm sm:bottom-auto sm:left-auto sm:right-4 sm:top-16 sm:max-h-[60vh] sm:w-52">
+        <button
+          type="button"
+          onClick={() => setWordsOpen((o) => !o)}
+          aria-expanded={wordsOpen}
+          className="flex w-full items-center justify-between gap-2 px-3 py-2.5 sm:cursor-default sm:py-2"
+        >
+          <span className="font-mono text-xs text-subtext1">nesta tela</span>
+          <span className="flex items-center gap-2">
+            <span className="font-mono text-[10px] text-overlay1">
+              {foundCount}/{visibleWords.length}
+            </span>
+            <ChevronUp
+              className={`h-4 w-4 text-overlay1 transition-transform sm:hidden ${
+                wordsOpen ? "rotate-180" : ""
+              }`}
+            />
+          </span>
+        </button>
+        <div
+          className={`scrollbar-hide overflow-y-auto border-t border-surface0 px-3 py-2 ${
+            wordsOpen ? "block" : "hidden"
+          } sm:block`}
+        >
+          {sortedVisibleWords.length === 0 ? (
+            <p className="font-mono text-xs text-overlay1">nenhuma palavra</p>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {sortedVisibleWords.map((w) => (
+                <li
+                  key={w.word}
+                  className={`font-mono text-sm ${
+                    w.founded
+                      ? "text-green line-through decoration-green/60"
+                      : "text-subtext0"
+                  }`}
+                >
+                  {w.word}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
       {/* Coordinate Popover */}
@@ -389,6 +512,7 @@ export function GameBoard() {
                 const isSelected = selectedCells.some(
                   ([r, c]) => r === globalRow && c === globalCol,
                 );
+                const isDebugWord = DEBUG_WORDS && debugWordCells.has(posKey);
 
                 let cellClass =
                   "flex items-center justify-center border border-surface0/60 transition-colors duration-150 absolute top-0 left-0 cursor-pointer";
@@ -400,6 +524,9 @@ export function GameBoard() {
                 } else if (isSelected) {
                   cellClass += " bg-mauve/25";
                   letterClass += " text-mauve";
+                } else if (isDebugWord) {
+                  cellClass += " bg-red/20";
+                  letterClass += " text-red";
                 } else {
                   cellClass += " bg-base hover:bg-surface0";
                   letterClass += " text-subtext0";

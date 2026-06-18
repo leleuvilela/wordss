@@ -77,6 +77,17 @@ export interface FoundWordsRequest {
   type: "getFoundWords";
 }
 
+export interface VisibleWordsRequest {
+  type: "getVisibleWords";
+  startRow: number;
+  startCol: number;
+  endRow: number;
+  endCol: number;
+  // Debug-only: ask the server to also return word coordinates. Honored only
+  // when the server has DEBUG_WORDS enabled — never in production.
+  debug?: boolean;
+}
+
 export interface ChunkResponse {
   type: "chunk";
   chunkRow: number;
@@ -125,11 +136,18 @@ export interface FoundWordsListResponse {
   }>;
 }
 
+export interface VisibleWordsResponse {
+  type: "visibleWords";
+  // `coords` is populated only in debug mode (see VisibleWordsRequest.debug).
+  words: Array<{ word: string; founded: boolean; coords?: Position[] }>;
+}
+
 export type WebSocketMessage =
   | ChunkRequest
   | RegionRequest
   | ValidateRequest
   | FoundWordsRequest
+  | VisibleWordsRequest
   | StatsRequest;
 
 export type WebSocketResponse =
@@ -139,7 +157,8 @@ export type WebSocketResponse =
   | StatsResponse
   | ErrorResponse
   | WordFoundResponse
-  | FoundWordsListResponse;
+  | FoundWordsListResponse
+  | VisibleWordsResponse;
 
 export type WebSocketData = {
   createdAt: number;

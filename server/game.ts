@@ -478,6 +478,63 @@ class InfiniteWordSearch {
     return Array.from(this.foundWords.values());
   }
 
+  /**
+   * Words that have at least one cell inside the given region (i.e. visible on
+   * the player's current screen). Returns word strings only — never positions,
+   * so the find-list can't be used to cheat. A word is reported as `founded`
+   * only when every visible placement of it has already been found.
+   */
+  public getWordsInRegion(
+    startRow: number,
+    startCol: number,
+    endRow: number,
+    endCol: number,
+    includeCoords: boolean = false,
+  ): Array<{ word: string; founded: boolean; coords?: Position[] }> {
+    // Ensure every chunk overlapping the region exists, otherwise its words
+    // wouldn't be in placedWords yet.
+    const [minChunkRow, minChunkCol] = this.getChunkCoords(startRow, startCol);
+    const [maxChunkRow, maxChunkCol] = this.getChunkCoords(endRow, endCol);
+    for (let cr = minChunkRow; cr <= maxChunkRow; cr++) {
+      for (let cc = minChunkCol; cc <= maxChunkCol; cc++) {
+        this.ensureChunkExists(cr, cc);
+      }
+    }
+
+    const wordsInRegion = new Map<
+      string,
+      { founded: boolean; coords: Position[] }
+    >();
+
+    for (const placement of this.placedWords.values()) {
+      const positions = this.getWordPositions(placement);
+      const cellsInRegion = positions.filter(
+        ([r, c]) =>
+          r >= startRow && r <= endRow && c >= startCol && c <= endCol,
+      ).length;
+      // Only list a word once at least half of its cells are on screen — this
+      // excludes words barely peeking in from the viewport edges.
+      if (cellsInRegion * 2 < positions.length) continue;
+
+      const existing = wordsInRegion.get(placement.word);
+      if (existing) {
+        existing.founded = existing.founded && placement.founded;
+        if (includeCoords) existing.coords.push(...positions);
+      } else {
+        wordsInRegion.set(placement.word, {
+          founded: placement.founded,
+          coords: includeCoords ? [...positions] : [],
+        });
+      }
+    }
+
+    return Array.from(wordsInRegion.entries()).map(([word, value]) =>
+      includeCoords
+        ? { word, founded: value.founded, coords: value.coords }
+        : { word, founded: value.founded },
+    );
+  }
+
   /** Re-apply persisted found words (e.g. loaded from storage on boot). */
   public restoreFoundWords(
     entries: Array<{ wordId: string; word: string; coords: Position[] }>,

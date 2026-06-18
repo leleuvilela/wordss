@@ -6,6 +6,7 @@ import type {
   ValidateResponse,
   WordFoundResponse,
   FoundWordsListResponse,
+  VisibleWordsResponse,
 } from "@/types";
 import { useEffect, useState, useCallback, useRef } from "react";
 
@@ -14,6 +15,11 @@ import { useEffect, useState, useCallback, useRef } from "react";
 // ==========================================
 
 const INITIAL_CHUNKS = 5; // Load 20x20 chunks initially
+
+// Debug-only: when enabled, ask the server for word coordinates so the board
+// can highlight where words are. Build-time env, defaults off — keep it unset
+// in production.
+const DEBUG_WORDS = import.meta.env.VITE_DEBUG_WORDS === "true";
 
 // ==========================================
 // Types
@@ -95,6 +101,9 @@ export function useBoard() {
   );
   const [selectedCells, setSelectedCells] = useState<Position[]>([]);
   const [validatedWords, setValidatedWords] = useState<Set<string>>(new Set());
+  const [visibleWords, setVisibleWords] = useState<
+    Array<{ word: string; founded: boolean; coords?: Position[] }>
+  >([]);
   const requestedChunksRef = useRef<Set<string>>(new Set());
 
   // ==========================================
@@ -204,6 +213,7 @@ export function useBoard() {
         });
         return next;
       });
+      markWordFounded(result);
     }
 
     // Clear selection after validation
@@ -211,7 +221,7 @@ export function useBoard() {
   }
 
   function handleWordFound(message: WordFoundResponse) {
-    const { coords } = message;
+    const { word, coords } = message;
 
     setValidatedWords((prev) => {
       const next = new Set(prev);
@@ -220,6 +230,18 @@ export function useBoard() {
       });
       return next;
     });
+    markWordFounded(word);
+  }
+
+  // Flip a word to founded in the on-screen list without waiting for a refresh.
+  function markWordFounded(word: string) {
+    setVisibleWords((prev) =>
+      prev.map((w) => (w.word === word ? { ...w, founded: true } : w)),
+    );
+  }
+
+  function handleVisibleWords(message: VisibleWordsResponse) {
+    setVisibleWords(message.words);
   }
 
   function handleFoundWordsList(message: FoundWordsListResponse) {
@@ -253,6 +275,9 @@ export function useBoard() {
         break;
       case "foundWordsList":
         handleFoundWordsList(lastMessage);
+        break;
+      case "visibleWords":
+        handleVisibleWords(lastMessage);
         break;
     }
   }, [lastMessage]);
@@ -298,6 +323,20 @@ export function useBoard() {
     sendMessage({ type: "getFoundWords" });
   }
 
+  const requestVisibleWords = useCallback(
+    (startRow: number, startCol: number, endRow: number, endCol: number) => {
+      sendMessage({
+        type: "getVisibleWords",
+        startRow,
+        startCol,
+        endRow,
+        endCol,
+        debug: DEBUG_WORDS,
+      });
+    },
+    [sendMessage],
+  );
+
   return {
     // State
     chunks,
@@ -305,10 +344,12 @@ export function useBoard() {
     loadedChunkBounds,
     selectedCells,
     validatedWords,
+    visibleWords,
     connectionStatus,
     // Functions
     requestChunk,
     requestChunksInRange,
+    requestVisibleWords,
     handleCellClick,
     getRegion,
     getStats,

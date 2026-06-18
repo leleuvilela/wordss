@@ -14,6 +14,8 @@ import type {
   WebSocketData,
   WordFoundResponse,
   FoundWordsListResponse,
+  VisibleWordsRequest,
+  VisibleWordsResponse,
 } from "./types";
 
 const GAME_CHANNEL = "game";
@@ -82,6 +84,9 @@ class WordSearchServer {
           break;
         case "getFoundWords":
           this.handleGetFoundWords(ws);
+          break;
+        case "getVisibleWords":
+          this.handleVisibleWordsRequest(ws, data);
           break;
         default:
           this.sendError(ws, "Unknown message type");
@@ -185,6 +190,30 @@ class WordSearchServer {
       foundWords: foundWords,
     };
     ws.send(JSON.stringify(foundWordsMessage));
+  }
+
+  private handleVisibleWordsRequest(
+    ws: ServerWebSocket<WebSocketData>,
+    request: VisibleWordsRequest,
+  ) {
+    // Word coordinates are leaked only when the server explicitly enables
+    // debug mode AND the client asks for it. Off by default → never in prod.
+    const debug = process.env.DEBUG_WORDS === "true" && request.debug === true;
+
+    const words = this.game.getWordsInRegion(
+      request.startRow,
+      request.startCol,
+      request.endRow,
+      request.endCol,
+      debug,
+    );
+
+    const response: VisibleWordsResponse = {
+      type: "visibleWords",
+      words,
+    };
+
+    ws.send(JSON.stringify(response));
   }
 
   private handleStatsRequest(ws: ServerWebSocket<WebSocketData>) {
